@@ -1,0 +1,355 @@
+variables:
+  # https://wiki.ubuntu.com/OpenStack/CloudArchive
+  # packages for an LTS release come in a form of SRUs
+  # do not use cloud:<pocket> for an LTS version as
+  # installation hooks will fail. Example:
+  #openstack-origin: &openstack-origin cloud:xenial-newton
+  openstack-origin:    &openstack-origin    cloud:xenial-queens
+  test-space:           &test-space           test
+machines:
+  '0':
+    series: xenial
+  '1':
+    series: xenial
+  '2':
+    series: xenial
+  '3':
+    series: xenial
+relations:
+- - nova-compute:amqp
+  - rabbitmq-server:amqp
+- - neutron-gateway:amqp
+  - rabbitmq-server:amqp
+- - keystone:shared-db
+  - mysql:shared-db
+- - nova-cloud-controller:identity-service
+  - keystone:identity-service
+- - glance:identity-service
+  - keystone:identity-service
+- - neutron-api:identity-service
+  - keystone:identity-service
+- - neutron-openvswitch:neutron-plugin-api
+  - neutron-api:neutron-plugin-api
+- - neutron-api:shared-db
+  - mysql:shared-db
+- - neutron-api:amqp
+  - rabbitmq-server:amqp
+- - neutron-gateway:neutron-plugin-api
+  - neutron-api:neutron-plugin-api
+- - glance:shared-db
+  - mysql:shared-db
+- - glance:amqp
+  - rabbitmq-server:amqp
+- - nova-cloud-controller:image-service
+  - glance:image-service
+- - nova-compute:image-service
+  - glance:image-service
+- - nova-cloud-controller:cloud-compute
+  - nova-compute:cloud-compute
+- - nova-cloud-controller:amqp
+  - rabbitmq-server:amqp
+- - nova-cloud-controller:quantum-network-service
+  - neutron-gateway:quantum-network-service
+- - nova-compute:neutron-plugin
+  - neutron-openvswitch:neutron-plugin
+- - neutron-openvswitch:amqp
+  - rabbitmq-server:amqp
+- - openstack-dashboard:identity-service
+  - keystone:identity-service
+- - nova-cloud-controller:shared-db
+  - mysql:shared-db
+- - nova-cloud-controller:neutron-api
+  - neutron-api:neutron-api
+- - cinder:image-service
+  - glance:image-service
+- - cinder:amqp
+  - rabbitmq-server:amqp
+- - cinder:identity-service
+  - keystone:identity-service
+- - cinder:cinder-volume-service
+  - nova-cloud-controller:cinder-volume-service
+- - cinder-ceph:storage-backend
+  - cinder:storage-backend
+- - ceph-mon:client
+  - nova-compute:ceph
+- - nova-compute:ceph-access
+  - cinder-ceph:ceph-access
+- - cinder:shared-db
+  - mysql:shared-db
+- - ceph-mon:client
+  - cinder-ceph:ceph
+- - ceph-mon:client
+  - glance:ceph
+- - ceph-osd:mon
+  - ceph-mon:osd
+- - ntp:juju-info
+  - nova-compute:juju-info
+- - ntp:juju-info
+  - neutron-gateway:juju-info
+- [ swift-proxy, keystone ]
+- [ swift-proxy, swift-storage-zone1 ]
+- [ swift-proxy, swift-storage-zone2 ]
+- [ swift-proxy, swift-storage-zone3 ]
+- [glance-simplestreams-sync, keystone]
+- [glance-simplestreams-sync, rabbitmq-server]  
+series: xenial
+services:
+  ceph-mon:
+    bindings:
+      "": *test-space
+    annotations:
+      gui-x: '750'
+      gui-y: '500'
+    charm: cs:ceph-mon
+    num_units: 3
+    options:
+      expected-osd-count: 3
+      source: *openstack-origin
+    to:
+    - lxd:1
+    - lxd:2
+    - lxd:3
+  ceph-osd:
+    bindings:
+      "": *test-space
+    annotations:
+      gui-x: '1000'
+      gui-y: '500'
+    charm: cs:ceph-osd
+    num_units: 3
+    options:
+      osd-devices: /dev/sdb
+      source: *openstack-origin
+    to:
+    - '1'
+    - '2'
+    - '3'
+  cinder:
+    bindings:
+      "": *test-space
+    annotations:
+      gui-x: '750'
+      gui-y: '0'
+    charm: cs:cinder
+    num_units: 1
+    options:
+      block-device: None
+      glance-api-version: 2
+      openstack-origin: *openstack-origin
+      worker-multiplier: 0.25
+    to:
+    - lxd:1
+  swift-proxy:
+    charm: cs:swift-proxy
+    num_units: 1
+    bindings:
+      "": *test-space
+    options:
+      openstack-origin: *openstack-origin
+      zone-assignment: manual
+    to:
+      - lxd:1
+
+  swift-storage-zone1:
+    charm: cs:swift-storage
+    num_units: 1
+    bindings:
+      "": *test-space
+    options:
+      openstack-origin: *openstack-origin
+      block-device: sdc
+      overwrite: 'true'
+      zone: 1
+    to:
+      - 1
+
+  swift-storage-zone2:
+    charm: cs:swift-storage
+    num_units: 1
+    bindings:
+      "": *test-space
+    options:
+      openstack-origin: *openstack-origin
+      block-device: sdc
+      overwrite: 'true'
+      zone: 2
+    to:
+      - 2
+
+  swift-storage-zone3:
+    charm: cs:swift-storage
+    num_units: 1
+    bindings:
+       "": *test-space
+    options:
+      openstack-origin: *openstack-origin
+      block-device: sdc
+      overwrite: 'true'
+      zone: 3
+    to:
+      - 3
+  cinder-ceph:
+    bindings:
+      "": *test-space
+    annotations:
+      gui-x: '750'
+      gui-y: '250'
+    charm: cs:cinder-ceph
+    num_units: 0
+  glance:
+    bindings:
+      "": *test-space
+    annotations:
+      gui-x: '250'
+      gui-y: '0'
+    charm: cs:glance
+    num_units: 1
+    options:
+      openstack-origin: *openstack-origin
+      worker-multiplier: 0.25
+    to:
+    - lxd:2
+  keystone:
+    bindings:
+      "": *test-space
+    annotations:
+      gui-x: '500'
+      gui-y: '0'
+    charm: cs:keystone
+    num_units: 1
+    options:
+      admin-password: openstack
+      openstack-origin: *openstack-origin
+      worker-multiplier: 0.25
+    to:
+    - lxd:3
+  mysql:
+    bindings:
+      "": *test-space
+    annotations:
+      gui-x: '0'
+      gui-y: '250'
+    charm: cs:percona-cluster
+    num_units: 1
+    options:
+      innodb-buffer-pool-size: 256M
+      max-connections: 1000
+    to:
+    - lxd:0
+  neutron-api:
+    bindings:
+      "": *test-space
+    annotations:
+      gui-x: '500'
+      gui-y: '500'
+    charm: cs:neutron-api
+    num_units: 1
+    options:
+      worker-multiplier: 0.25
+      openstack-origin: *openstack-origin
+      flat-network-providers: physnet1
+      #vlan-ranges: physnet1:1000:3000
+      neutron-security-groups: True
+      overlay-network-type: vxlan gre
+      use-internal-endpoints: True
+      enable-l3ha: False
+      dhcp-agents-per-network: 1
+      enable-ml2-port-security: True
+      default-tenant-network-type: vxlan
+      l2-population: False
+    to:
+    - lxd:2
+  neutron-gateway:
+    bindings:
+      "": *test-space
+    annotations:
+      gui-x: '0'
+      gui-y: '0'
+    charm: cs:neutron-gateway
+    num_units: 1
+    options:
+      bridge-mappings: physnet1:br-data
+      data-port: br-data:eth1
+      openstack-origin: *openstack-origin
+      worker-multiplier: 0.25
+    to:
+    - '0'
+  neutron-openvswitch:
+    annotations:
+      gui-x: '250'
+      gui-y: '500'
+    charm: cs:neutron-openvswitch
+    num_units: 0
+  nova-cloud-controller:
+    bindings:
+      "": *test-space
+    annotations:
+      gui-x: '0'
+      gui-y: '500'
+    charm: cs:nova-cloud-controller
+    num_units: 1
+    options:
+      network-manager: Neutron
+      openstack-origin: *openstack-origin
+      worker-multiplier: 0.25
+    to:
+    - lxd:2
+  nova-compute:
+    bindings:
+      "": *test-space
+    annotations:
+      gui-x: '250'
+      gui-y: '250'
+    charm: cs:nova-compute
+    num_units: 3
+    options:
+      config-flags: default_ephemeral_format=ext4
+      enable-live-migration: true
+      enable-resize: true
+      migration-auth-type: ssh
+      openstack-origin: *openstack-origin
+    to:
+    - '1'
+    - '2'
+    - '3'
+  ntp:
+    annotations:
+      gui-x: '1000'
+      gui-y: '0'
+    charm: cs:ntp
+    num_units: 0
+  openstack-dashboard:
+    bindings:
+      "": *test-space
+    annotations:
+      gui-x: '500'
+      gui-y: '-250'
+    charm: cs:openstack-dashboard
+    num_units: 1
+    options:
+      openstack-origin: *openstack-origin
+    to:
+    - lxd:3
+  rabbitmq-server:
+    bindings:
+      "": *test-space
+    annotations:
+      gui-x: '500'
+      gui-y: '250'
+    charm: cs:rabbitmq-server
+    num_units: 1
+    to:
+    - lxd:0
+  glance-simplestreams-sync:
+    bindings:
+      "": *test-space
+    annotations:
+      gui-x: '500'
+      gui-y: '250'
+    charm: cs:glance-simplestreams-sync
+    num_units: 1
+    options:
+      source: ppa:simplestreams-dev/trunk
+    to:
+    - lxd:2
+

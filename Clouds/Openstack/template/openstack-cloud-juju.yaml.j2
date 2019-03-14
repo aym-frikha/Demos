@@ -1,0 +1,8 @@
+clouds:
+  openstack:
+    type: openstack
+    auth-types: [userpass]
+    endpoint: http://{{ keystone_ip }}:5000/v3
+    regions:
+      RegionOne:
+        endpoint: http://{{ keystone_ip }}:5000/v3

@@ -1,0 +1,100 @@
+description: A minimal two-machine Kubernetes cluster, appropriate for development.
+series: bionic
+machines:
+  '0':
+    constraints: cores=4 mem=4G
+    series: bionic
+  '1':
+    constraints: cores=4 mem=4G
+    series: bionic
+services:
+  easyrsa:
+    annotations:
+      gui-x: '450'
+      gui-y: '550'
+    charm: cs:~containers/easyrsa-222
+    num_units: 1
+    resources:
+      easyrsa: 5
+    to:
+    - lxd:0
+  etcd:
+    annotations:
+      gui-x: '800'
+      gui-y: '550'
+    charm: cs:~containers/etcd-397
+    num_units: 1
+    options:
+      channel: 3.2/stable
+    resources:
+      etcd: 3
+      snapshot: 0
+    to:
+    - '0'
+  flannel:
+    annotations:
+      gui-x: '450'
+      gui-y: '750'
+    charm: cs:~containers/flannel-386
+    resources:
+      flannel-amd64: 76
+      flannel-arm64: 76
+      flannel-s390x: 62
+  kubernetes-master:
+    annotations:
+      gui-x: '800'
+      gui-y: '850'
+    charm: cs:~containers/kubernetes-master-604
+    constraints: cores=2 mem=4G root-disk=16G
+    expose: true
+    num_units: 1
+    options:
+      channel: 1.13/stable
+    resources:
+      cdk-addons: 0
+      kube-apiserver: 0
+      kube-controller-manager: 0
+      kube-proxy: 0
+      kube-scheduler: 0
+      kubectl: 0
+    to:
+    - '0'
+  kubernetes-worker:
+    annotations:
+      gui-x: '100'
+      gui-y: '850'
+    charm: cs:~containers/kubernetes-worker-472
+    constraints: cores=4 mem=4G root-disk=16G
+    expose: true
+    num_units: 1
+    options:
+      channel: 1.13/stable
+    resources:
+      cni-amd64: 82
+      cni-arm64: 76
+      cni-s390x: 80
+      kube-proxy: 0
+      kubectl: 0
+      kubelet: 0
+    to:
+    - '1'
+
+relations:
+- - kubernetes-master:kube-api-endpoint
+  - kubernetes-worker:kube-api-endpoint
+- - kubernetes-master:kube-control
+  - kubernetes-worker:kube-control
+- - kubernetes-master:certificates
+  - easyrsa:client
+- - kubernetes-master:etcd
+  - etcd:db
+- - kubernetes-worker:certificates
+  - easyrsa:client
+- - etcd:certificates
+  - easyrsa:client
+- - flannel:etcd
+  - etcd:db
+- - flannel:cni
+  - kubernetes-master:cni
+- - flannel:cni
+  - kubernetes-worker:cni
