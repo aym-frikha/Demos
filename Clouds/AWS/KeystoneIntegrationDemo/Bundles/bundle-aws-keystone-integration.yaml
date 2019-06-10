@@ -1,0 +1,195 @@
+description: A highly-available, production-grade Kubernetes cluster.
+series: bionic
+machines:
+  "0":
+    constraints: cores=4 mem=4G
+    series: bionic
+  "1":
+    constraints: cores=4 mem=4G
+    series: bionic
+  "2":
+    constraints: cores=4 mem=4G
+    series: bionic
+  "3":
+    constraints: cores=4 mem=4G
+    series: bionic
+  "4":
+    constraints: cores=4 mem=4G
+    series: bionic
+  "5":
+    constraints: cores=4 mem=4G
+    series: bionic
+  "6":
+    constraints: cores=4 mem=4G
+    series: bionic
+  "7":
+    constraints: cores=4 mem=4G
+    series: bionic
+  "8":
+    constraints: cores=4 mem=4G
+    series: bionic
+services:
+  canal:
+    annotations:
+      gui-x: '450'
+      gui-y: '750'
+    charm: cs:~containers/canal-624
+    resources:
+      calico: 222
+      calico-arm64: 223
+      flannel: 222
+      flannel-arm64: 223
+  easyrsa:
+    annotations:
+      gui-x: '450'
+      gui-y: '550'
+    charm: cs:~containers/easyrsa-248
+    constraints: root-disk=8G
+    num_units: 1
+    resources:
+      easyrsa: 5
+    to:
+    - lxd:0
+  etcd:
+    annotations:
+      gui-x: '800'
+      gui-y: '550'
+    charm: cs:~containers/etcd-426
+    constraints: root-disk=8G
+    num_units: 3
+    options:
+      channel: 3.2/stable
+    resources:
+      core: 0
+      etcd: 3
+      snapshot: 0
+    to:
+    - lxd:0
+    - lxd:1
+    - lxd:2
+  kubeapi-load-balancer:
+    annotations:
+      gui-x: '450'
+      gui-y: '250'
+    charm: cs:~containers/kubeapi-load-balancer-642
+    constraints: root-disk=8G
+    expose: true
+    num_units: 1
+    resources: {}
+    to:
+    - 0
+  kubernetes-master:
+    annotations:
+      gui-x: '800'
+      gui-y: '850'
+    charm: cs:~containers/kubernetes-master-678
+    constraints: cores=2 mem=4G root-disk=16G
+    num_units: 2
+    options:
+      channel: 1.14/stable
+    resources:
+      cdk-addons: 0
+      core: 0
+      kube-apiserver: 0
+      kube-controller-manager: 0
+      kube-proxy: 0
+      kube-scheduler: 0
+      kubectl: 0
+    to:
+    - 1
+    - 2
+  kubernetes-worker:
+    annotations:
+      gui-x: '100'
+      gui-y: '850'
+    charm: cs:~containers/kubernetes-worker-536
+    constraints: cores=4 mem=4G root-disk=16G
+    expose: true
+    num_units: 2
+    options:
+      channel: 1.14/stable
+    resources:
+      cni-amd64: 225
+      cni-arm64: 217
+      cni-s390x: 225
+      core: 0
+      kube-proxy: 0
+      kubectl: 0
+      kubelet: 0
+    to:
+    - 3
+    - 4
+  keystone:
+    charm: cs:keystone
+    num_units: 1
+    expose: true
+    options:
+            #      openstack-origin: cloud:bionic-queens
+      worker-multiplier: 0.25
+      preferred-api-version: 3
+    to:
+    - 5 
+  keystone-ldap:
+    charm: cs:keystone-ldap
+    options:
+      ldap-server: "ldap://ldap.forumsys.com/"
+      ldap-user: "cn=read-only-admin,dc=example,dc=com"
+      ldap-password: "password"
+      ldap-suffix: "dc=example,dc=com"
+      domain-name: "k8s"
+      ldap-config-flags: "{ user_tree_dn: 'dc=example,dc=com', query_scope: sub, user_objectclass: person,     user_attribute_ignore: 'password,tenant_id,tenants', user_allow_create: False, user_allow_update: False, user_allow_delete: False, }"
+  mysql:
+    charm: cs:percona-cluster
+    num_units: 1
+    options:
+      innodb-buffer-pool-size: 256M
+      max-connections: 1000
+    to:
+    - 6
+  openstack-dashboard:
+    charm: cs:openstack-dashboard
+    num_units: 1
+    expose: true
+    #   options:
+            #      openstack-origin: cloud:bionic-queens
+    to:
+    - 7
+  bastion:
+    charm: cs:ubuntu
+    num_units: 1
+    to:
+    - 8
+relations:
+- - kubernetes-master:kube-api-endpoint
+  - kubeapi-load-balancer:apiserver
+- - kubernetes-master:loadbalancer
+  - kubeapi-load-balancer:loadbalancer
+- - kubernetes-master:kube-control
+  - kubernetes-worker:kube-control
+- - kubernetes-master:certificates
+  - easyrsa:client
+- - etcd:certificates
+  - easyrsa:client
+- - kubernetes-master:etcd
+  - etcd:db
+- - kubernetes-worker:certificates
+  - easyrsa:client
+- - kubernetes-worker:kube-api-endpoint
+  - kubeapi-load-balancer:website
+- - kubeapi-load-balancer:certificates
+  - easyrsa:client
+- - canal:etcd
+  - etcd:db
+- - canal:cni
+  - kubernetes-master:cni
+- - canal:cni
+  - kubernetes-worker:cni
+- - keystone:shared-db
+  - mysql:shared-db
+- - openstack-dashboard:identity-service
+  - keystone:identity-service
+- - openstack-dashboard:shared-db
+  - mysql:shared-db
+- - keystone:identity-credentials 
+  - kubernetes-master:keystone-credentials 
+- [keystone, keystone-ldap]
