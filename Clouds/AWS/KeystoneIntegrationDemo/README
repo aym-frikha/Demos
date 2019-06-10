@@ -1,0 +1,22 @@
+#We used those links to make this demo:
+- https://www.ubuntu.com/kubernetes/docs/ldap
+- https://www.forumsys.com/tutorials/integration-how-to/ldap/online-ldap-test-server/
+
+
+# To test the integration:
+1- Make sure to update aws-credentials.yaml
+2- Python aws-controller.py
+3- run the script to_bastion.sh
+4- get admin.rc file for admin user and put it in the bastion machine
+5- source admin.rc
+6- execute openstack-commands.sh script in bastion machine
+7- update kube-keystone.sh file in bastion machine with right credentials
+
+example:
+export OS_AUTH_URL="http://172.31.4.36:5000/v3"
+export OS_PROJECT_NAME=k8s
+export OS_DOMAIN_NAME=k8s
+export OS_USERNAME=Euler
+export OS_PASSWORD=password
+
+8- Now you are able to run kubernetes commands
