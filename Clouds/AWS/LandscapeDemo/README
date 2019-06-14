@@ -5,5 +5,6 @@
 4- Create registration key
 5- run configure.sh script
 7- You can test the script check_config_file.sh to use with landscape:
-   - You can schedule it's run on different machines
+   - You can run it on different machines
+   - You can schedule it's execution
    - It allows you to check if a config file has been changed
