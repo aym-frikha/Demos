@@ -3,7 +3,7 @@ from lib import juju_cli
 cloud_name = 'aws'
 controller_name = 'aws'
 model_name = 'prod-env'
-k8s_bundle = "Clouds/AWS/Bundles/bundle-aws.yaml"
+k8s_bundle = "Clouds/AWS/LandscapeDemo/Bundles/bundle-landscape.yaml"
 
 def bootstrap():
     juju_cli.add_credential(cloud_name, 'Clouds/AWS/aws-credentials.yaml')

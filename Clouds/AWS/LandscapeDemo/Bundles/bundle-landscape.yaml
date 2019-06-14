@@ -1,0 +1,100 @@
+description: A highly-available, production-grade Kubernetes cluster.
+series: bionic
+variables:
+  landscape-charm: &landscape-charm "cs:bionic/landscape-server"
+
+machines:
+  "0":
+    constraints: cores=4 mem=4G
+    series: bionic
+  "1":
+    constraints: cores=4 mem=4G
+    series: bionic
+  "2":
+    constraints: cores=4 mem=4G
+    series: bionic
+  "3":
+    constraints: cores=4 mem=4G
+    series: bionic
+  "4":
+    constraints: cores=4 mem=4G
+    series: bionic
+  "5":
+    constraints: cores=4 mem=4G
+    series: bionic
+  "6":
+    constraints: cores=4 mem=4G
+    series: bionic
+  "7":
+    constraints: cores=4 mem=4G
+    series: bionic
+  "8":
+    constraints: cores=4 mem=4G
+    series: bionic
+  "9":
+    constraints: cores=4 mem=4G
+    series: bionic
+  "10":
+    constraints: cores=4 mem=4G
+    series: bionic
+services:
+  landscape-server:
+   charm: cs:landscape-server-31
+   options:
+     install_keys: 4652B4E6
+   num_units: 3
+   to:
+   - 0
+   - 1
+   - 2
+  landscape-rabbitmq-server:
+   charm: cs:rabbitmq-server
+   num_units: 3
+   options:
+      min-cluster-size: 3
+   to:
+   - 3
+   - 4
+   - 5
+  landscape-postgresql:
+   charm: cs:postgresql
+   num_units: 2
+   options:
+     extra_packages: python-apt postgresql-contrib postgresql-.*-debversion postgresql-plpython-.*
+     max_connections: 500
+     max_prepared_transactions: 500
+   to:
+   - 6
+   - 7
+  landscape-haproxy:
+   charm: cs:haproxy
+   expose: True
+   num_units: 1
+   options:
+      default_timeouts: "queue 60000, connect 5000, client 120000, server 120000"
+      # Don't deploy default haproxy service on port 80
+      services: ""
+      ssl_cert: SELFSIGNED
+      global_default_bind_options: "no-tlsv10"
+   to:
+   - 8
+  landscape-client:
+   charm: cs:landscape-client-31
+   options:
+     account-name: "standalone"
+     script-users: ALL
+  bastion:
+   charm: cs:ubuntu
+   num_units: 2
+   to:
+   - 9
+   - 10
+relations:
+ - [ landscape-server, landscape-rabbitmq-server ]
+ - [ landscape-server, landscape-haproxy ]
+ - [ "landscape-server:db", "landscape-postgresql:db-admin" ]
+ - [ landscape-server, landscape-client ]
+ - [ landscape-rabbitmq-server, landscape-client ]
+ - [ landscape-postgresql, landscape-client ]
+ - [ landscape-haproxy, landscape-client ]
+ - [ bastion, landscape-client ]

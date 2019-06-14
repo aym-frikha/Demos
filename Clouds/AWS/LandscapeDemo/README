@@ -1,0 +1,9 @@
+# To test the Landscape tool:
+1- Make sure to update aws-credentials.yaml
+2- Python aws-controller.py
+3- Create initial admin user
+4- Create registration key
+5- run configure.sh script
+7- You can test the script check_config_file.sh to use with landscape:
+   - You can schedule it's run on different machines
+   - It allows you to check if a config file has been changed
