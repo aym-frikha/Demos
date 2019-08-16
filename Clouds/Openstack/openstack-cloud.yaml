@@ -1,0 +1,8 @@
+clouds:
+  openstack:
+    type: openstack
+    auth-types: [userpass]
+    endpoint: http://172.27.32.29:5000/v3
+    regions:
+      RegionOne:
+        endpoint: http://172.27.32.29:5000/v3

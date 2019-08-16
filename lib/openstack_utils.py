@@ -70,7 +70,7 @@ def creat_flavor():
     if not conn.compute.find_flavor(flavor_name):
         flavor = {
             'name': flavor_name,
-            'disk': 10,
+            'disk': 30,
             'is_public': True,
             'ram': 4096,
             'vcpus': 4

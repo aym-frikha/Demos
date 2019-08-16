@@ -6,25 +6,34 @@ from jinja2 import Environment, FileSystemLoader
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 cloud_name = 'openstack'
 controller_name = 'openstack'
-model_name = 'stage-env'
+model_name = 'openstack'
 k8s_bundle = "Clouds/Openstack/Bundles/k8s-bundle.yaml"
 
 def render_openstack_cloud_files():
-    keystone_ip = juju_cli.run('openstack', 'keystone/0', 'hostname --ip-address')
+    keystone_ip = '172.27.32.29'
+    admin_password = juju_cli.run(model_name, 'keystone/0', 'leader-get admin_passwd')
 
     j2_env = Environment(loader=FileSystemLoader(THIS_DIR),
                          trim_blocks=True)
 
+    openstack_cloud_sdk = j2_env.get_template('Clouds/Openstack/template/openstack-cloud-sdk.yaml.j2').render(
+        keystone_ip=keystone_ip.rstrip(), admin_password=admin_password.rstrip())
+
+
+
     openstack_cloud_juju = j2_env.get_template('Clouds/Openstack/template/openstack-cloud-juju.yaml.j2').render(
         keystone_ip=keystone_ip.rstrip())
 
-    openstack_cloud_sdk = j2_env.get_template('Clouds/Openstack/template/openstack-cloud-sdk.yaml.j2').render(
-        keystone_ip=keystone_ip.rstrip())
+    openstack_credentials = j2_env.get_template('Clouds/Openstack/template/openstack-cloud-credentials.yaml.j2').render(
+        keystone_ip=keystone_ip.rstrip(), admin_password=admin_password.rstrip())
 
-    with open('Clouds/Openstack/openstack-cloud.yaml', 'w') as f:
+    with open('Clouds/Openstack/openstack-cloud.yaml', 'w+') as f:
         f.write(openstack_cloud_juju)
 
-    with open('lib/clouds.yaml', 'w') as f:
+    with open('Clouds/Openstack/openstack-credentials.yaml', 'w+') as f:
+        f.write(openstack_credentials)
+
+    with open('/home/ubuntu/.config/openstack/clouds.yaml', 'w+') as f:
         f.write(openstack_cloud_sdk)
 
 def bootstrap_juju():

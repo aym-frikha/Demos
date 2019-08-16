@@ -4,8 +4,8 @@ clouds:
    auth:
      user_domain_name: "admin_domain"
      username: 'admin'
-     password: '{{ admin_password }}'
+     password: 'mub3aTeeng2quie7'
      project_name: 'admin'
      project-domain-name: "admin_domain"
-     auth_url: 'http://{{ keystone_ip }}:5000/v3'
+     auth_url: 'http://172.27.32.207:5000/v3'
    identity_api_version: 3

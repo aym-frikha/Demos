@@ -78,7 +78,9 @@ services:
       kubelet: 0
     to:
     - '1'
-
+  openstack-integrator:
+    charm: cs:~containers/openstack-integrator
+    num_units: 1
 relations:
 - - kubernetes-master:kube-api-endpoint
   - kubernetes-worker:kube-api-endpoint
@@ -98,3 +100,5 @@ relations:
   - kubernetes-master:cni
 - - flannel:cni
   - kubernetes-worker:cni
+- ['openstack-integrator', 'kubernetes-master']
+- ['openstack-integrator', 'kubernetes-worker']
