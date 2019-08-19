@@ -1,0 +1,739 @@
+# Copyright (c) 2017-2018 Canonical USA Inc. All rights reserved.
+#
+# Foundation HyperConverged
+#
+series: bionic
+variables:
+  # https://wiki.ubuntu.com/OpenStack/CloudArchive
+  # packages for an LTS release come in a form of SRUs
+  # do not use cloud:<pocket> for an LTS version as
+  # installation hooks will fail. Example:
+  openstack-origin:    &openstack-origin    cloud:bionic-rocky
+
+  openstack-region:    &openstack-region    RegionOne
+
+  # !> Important <!
+  # configure that value for the API services as if they
+  # spawn too many workers you will get inconsistent failures
+  # due to CPU overcommit
+  worker-multiplier:   &worker-multiplier   0.25
+
+  # Number of MySQL connections in the env. Default is not enough
+  # for environment of this size. So, bundle declares default of
+  # 2000. There's hardly a case for higher than this
+  mysql-connections:   &mysql-connections   2000
+
+  # Do not change 'br-data', modify only the NIC
+  # this port will be used exclusively by neutron-gateway
+  # to provide connectivity to an external network, therefore,
+  # do not configure an IP address for this port in MAAS
+  # A VLAN port can be used here (e.g. configured via MAAS)
+  # but note that in this case an external network must be
+  # configured as 'flat' not as 'VLAN' as there will
+  # be two 802.1q headers appended - one by the OVS itself and one
+  # by the kernel 802.1q module which will result in the lack of
+  # connectivity for no apparent reason.
+  data-port:           &data-port           br-data:enx8cae4cfd9688
+
+  # This is Management network, unrelated to OpenStack and other applications
+  # OAM - Operations, Administration and Maintenance
+  oam-space:           &oam-space           oam-space
+
+  # This is OpenStack Admin network; for adminURL endpoints
+  admin-space:         &admin-space         oam-space
+
+  # This is OpenStack Public network; for publicURL endpoints
+  public-space:        &public-space        oam-space
+  # DNS access space that should include DNS access VLANs separate
+  # from public API VLANs, see lp:1804057
+  dns-access-space:    &dns-access-space        oam-space
+
+  # This is OpenStack Internal network; for internalURL endpoints
+  internal-space:      &internal-space      oam-space
+
+  # This is the overlay network
+  overlay-space:       &overlay-space       oam-space
+
+  # CEPH configuration
+  # CEPH access network
+  ceph-public-space:   &ceph-public-space   oam-space
+
+  # CEPH replication network
+  ceph-cluster-space:  &ceph-cluster-space  oam-space
+
+  # Workaround for 'only one default binding supported'
+  oam-space-constr:    &oam-space-constr    spaces=oam-space
+  ceph-access-constr:  &ceph-access-constr  spaces=oam-space
+
+  # CEPH OSD and journal devices; temporary workaround for #1674148
+  osd-devices:         &osd-devices         /dev/sdb
+  osd-journal:         &osd-journal
+
+  # Customize-failure-domains is a dangerous option in the Ceph-MON and Ceph-OSD
+  # charms. Never set this 'true' unless you have multiple zones configured in
+  # MAAS which correlate to racks in the data center. Setting this option inappropriately
+  # will result in a broken crush map but a valid Juju status which is both difficult
+  # to diagnose and fix without a redeployment. #1764492
+  customize-failure-domain:    &customize-failure-domain    False
+
+  # Expected OSD count is total number of OSD disks that will be part of Ceph cluster.
+  # Never set this number higher or much lower than the real number. 10-20% less than
+  # actual number is acceptable
+  expected-osd-count:  &expected-osd-count  8
+  expected-mon-count:  &expected-mon-count  3
+
+  # DNS configuration
+  # This configuration for overlay networks. Usually domain should be set to something
+  # like "openstack.customername.lan." (notice . at the end), while cidr is for PTR
+  # records, so in most cases 24 is just fine (16 is another option)
+  dns-domain: &dns-domain "openstack.customername.lan."
+  dns-cidr: &dns-cidr 24
+
+  # Various VIPs
+  aodh-vip:            &aodh-vip            "172.27.32.21"
+  ceilometer-vip:      &ceilometer-vip      "172.27.32.22"
+  cinder-vip:          &cinder-vip          "172.27.32.23"
+  dashboard-vip:       &dashboard-vip       "172.27.32.24"
+  designate-vip:       &designate-vip       "172.27.32.25"
+  glance-vip:          &glance-vip          "172.27.32.26"
+  gnocchi-vip:         &gnocchi-vip         "172.27.32.27"
+  heat-vip:            &heat-vip            "172.27.32.28"
+  keystone-vip:        &keystone-vip        "172.27.32.29"
+  mysql-vip:           &mysql-vip           "172.27.32.30"
+  neutron-api-vip:     &neutron-api-vip     "172.27.32.31"
+  nova-cc-vip:         &nova-cc-vip         "172.27.32.32"
+  rados-gateway-vip:   &rados-gateway-vip   "172.27.32.33"
+
+  # NTP configuration
+  ntp-source:          &ntp-source          "ntp.ubuntu.com"
+
+  # designate nameservers
+  designate-nameservers: &designate-nameservers "ns1.example.com."
+
+  # Temporary charms until they get merged upstream
+  # Built from this Landscape charm: lp:~cpe-consulting/landscape-charm/client-relation
+  # XXX: 1671680
+  landscape-charm: &landscape-charm "cs:~alai/landscape-server"
+
+  # After bundle has been deployed, log in to Landscape server and create
+  # an account. In the account settings, set the Registration key and then
+  # configure landscape-client to use that registration-key:
+  # juju config landscape-client registration-key=$your_registration_key
+
+machines:
+  "0":
+    constraints: tags=neutron-gw
+  "1":
+    constraints: tags=os-nodes
+  "2":
+    constraints: tags=os-nodes
+  "3":
+    constraints: tags=os-nodes
+  "4":
+    constraints: tags=os-nodes
+  "5":
+    constraints: tags=os-nodes
+  "6":
+    constraints: tags=os-nodes
+  "7":
+    constraints: tags=os-nodes
+  "8":
+    constraints: tags=os-nodes
+
+applications:
+  # HAcluster
+  hacluster-aodh:
+    charm: cs:hacluster
+    options:
+      cluster_count: 3
+  hacluster-cinder:
+    charm: cs:hacluster
+    options:
+      cluster_count: 3
+  hacluster-glance:
+    charm: cs:hacluster
+    options:
+      cluster_count: 3
+  hacluster-gnocchi:
+    charm: cs:hacluster
+    options:
+      cluster_count: 3
+  hacluster-horizon:
+    charm: cs:hacluster
+    options:
+      cluster_count: 3
+  hacluster-keystone:
+    charm: cs:hacluster
+    options:
+      cluster_count: 3
+  hacluster-neutron:
+    charm: cs:hacluster
+    options:
+      cluster_count: 3
+  hacluster-nova:
+    charm: cs:hacluster
+    options:
+      cluster_count: 3
+  hacluster-mysql:
+    charm: cs:hacluster
+    options:
+      cluster_count: 3
+  hacluster-radosgw:
+    charm: cs:hacluster
+    options:
+      cluster_count: 3
+  hacluster-designate:
+    charm: cs:hacluster
+    options:
+      cluster_count: 3
+  hacluster-heat:
+    charm: cs:hacluster
+    options:
+      cluster_count: 3
+  hacluster-ceilometer:
+    charm: cs:hacluster
+    options:
+      cluster_count: 3
+  # Ceph
+  ceph-mon:
+    charm: cs:ceph-mon
+    num_units: 3
+    bindings:
+      "": *oam-space
+      public: *ceph-public-space
+    options:
+            #    expected-osd-count: *expected-osd-count
+      source: *openstack-origin
+      monitor-count: *expected-mon-count
+      customize-failure-domain: *customize-failure-domain
+    to:
+    - lxd:0
+    - lxd:1
+    - lxd:2
+  ceph-osd:
+    charm: cs:ceph-osd
+    num_units: 8
+    bindings:
+      "": *oam-space
+      public: *ceph-public-space
+      cluster: *ceph-cluster-space
+    options:
+      osd-devices: *osd-devices
+      osd-journal: *osd-journal
+      source: *openstack-origin
+      customize-failure-domain: *customize-failure-domain
+      autotune: true
+      aa-profile-mode: complain
+    to:
+    - '1'
+    - '2'
+    - '3'
+    - '4'
+    - '5'
+    - '6'
+    - '7'
+    - '8'
+  ceph-radosgw:
+    charm: cs:ceph-radosgw
+    num_units: 3
+    constraints: *ceph-access-constr
+    bindings:
+      "": *oam-space
+      public: *public-space
+      admin: *admin-space
+      internal: *internal-space
+      mon: *ceph-public-space
+    options:
+      source: *openstack-origin
+      vip: *rados-gateway-vip
+      region: *openstack-region
+      restrict-ceph-pools: False
+    to:
+    - lxd:0
+    - lxd:1
+    - lxd:2
+  # OpenStack
+  aodh:
+    charm: cs:aodh
+    num_units: 3
+    bindings:
+      "": *oam-space
+      public: *public-space
+      admin: *admin-space
+      internal: *internal-space
+      shared-db: *internal-space
+    options:
+      worker-multiplier: *worker-multiplier
+      openstack-origin: *openstack-origin
+      region: *openstack-region
+      vip: *aodh-vip
+      use-internal-endpoints: True
+    to:
+    - lxd:3
+    - lxd:5
+    - lxd:6
+  gnocchi:
+    charm: cs:gnocchi
+    num_units: 3
+    bindings:
+      "": *oam-space
+      public: *public-space
+      admin: *admin-space
+      internal: *internal-space
+      shared-db: *internal-space
+      storage-ceph: *ceph-public-space
+      coordinator-memcached: *internal-space
+    options:
+      worker-multiplier: *worker-multiplier
+      openstack-origin: *openstack-origin
+      region: *openstack-region
+      vip: *gnocchi-vip
+      use-internal-endpoints: True
+    to:
+    - lxd:3
+    - lxd:5
+    - lxd:6
+  cinder:
+    charm: cs:cinder
+    num_units: 3
+    constraints: *ceph-access-constr
+    bindings:
+      "": *oam-space
+      public: *public-space
+      admin: *admin-space
+      internal: *internal-space
+      shared-db: *internal-space
+    options:
+      worker-multiplier: *worker-multiplier
+      openstack-origin: *openstack-origin
+      block-device: None
+      glance-api-version: 2
+      vip: *cinder-vip
+      use-internal-endpoints: True
+      region: *openstack-region
+    to:
+    - lxd:0
+    - lxd:1
+    - lxd:2
+  cinder-ceph:
+    charm: cs:cinder-ceph
+    num_units: 0
+    options:
+      restrict-ceph-pools: False
+  glance:
+    charm: cs:glance
+    constraints: *ceph-access-constr
+    bindings:
+      "": *oam-space
+      public: *public-space
+      admin: *admin-space
+      internal: *internal-space
+      shared-db: *internal-space
+    options:
+      worker-multiplier: *worker-multiplier
+      openstack-origin: *openstack-origin
+      vip: *glance-vip
+      use-internal-endpoints: True
+      restrict-ceph-pools: False
+      region: *openstack-region
+    num_units: 3
+    to:
+    - lxd:0
+    - lxd:1
+    - lxd:2
+  keystone:
+    charm: cs:keystone
+    num_units: 3
+    bindings:
+      "": *oam-space
+      public: *public-space
+      admin: *admin-space
+      internal: *internal-space
+      shared-db: *internal-space
+    options:
+      worker-multiplier: *worker-multiplier
+      openstack-origin: *openstack-origin
+      vip: *keystone-vip
+      region: *openstack-region
+      preferred-api-version: 3
+      token-provider: 'fernet'
+    to:
+    - lxd:0
+    - lxd:1
+    - lxd:2
+  mysql:
+    charm: cs:percona-cluster
+    num_units: 3
+    bindings:
+      "": *oam-space
+      cluster: *internal-space
+      shared-db: *internal-space
+    options:
+      source: *openstack-origin
+      innodb-buffer-pool-size: 512M
+      vip: *mysql-vip
+      #root-password: password
+      #sst-password: password
+      wait-timeout: 180
+      min-cluster-size: 3
+      enable-binlogs: True
+      performance-schema: True
+      max-connections: *mysql-connections
+    to:
+    - lxd:0
+    - lxd:1
+    - lxd:2
+  neutron-api:
+    charm: cs:neutron-api
+    num_units: 3
+    bindings:
+      "": *oam-space
+      public: *public-space
+      admin: *admin-space
+      internal: *internal-space
+      shared-db: *internal-space
+    options:
+      worker-multiplier: *worker-multiplier
+      openstack-origin: *openstack-origin
+      region: *openstack-region
+      # configure physical-network-mtus for every physnet mentioned in
+      # ***flat-network-providers***
+      flat-network-providers: physnet1
+      # configure physical-network-mtus for every physnet mentioned in
+      # ***vlan-ranges***
+      # When provider networks are used directly, Designate-generated
+      # records will only be created for vlans ***outside*** the range
+      # specified in this option
+      # <physnet-name>:<vlan_min>:<vlan_max>
+      vlan-ranges:
+      neutron-security-groups: True
+      overlay-network-type: vxlan gre
+      use-internal-endpoints: True
+      vip: *neutron-api-vip
+      enable-l3ha: True
+      dhcp-agents-per-network: 2
+      enable-ml2-port-security: True
+      default-tenant-network-type: vxlan
+      l2-population: False
+      enable-ml2-dns: True
+      dns-domain: *dns-domain
+      reverse-dns-lookup: True
+      ipv4-ptr-zone-prefix-size: *dns-cidr
+      # set MTU settings to achieve 1500 MTU on instance interfaces in
+      # the overlay network. This will only work provided that the VTEP
+      # VLANs (overlay-space) are configured to have MTU larger than
+      # 1550 (jumbo frames) which is documented in the prerequisites doc
+      global-physnet-mtu: 1400
+      path-mtu: 1400
+      physical-network-mtus: physnet1:1400
+    to:
+    - lxd:3
+    - lxd:5
+    - lxd:6
+  neutron-gateway:
+    charm: cs:neutron-gateway
+    num_units: 1
+    bindings:
+      "": *oam-space
+      data: *overlay-space
+    options:
+      worker-multiplier: *worker-multiplier
+      openstack-origin: *openstack-origin
+      bridge-mappings: physnet1:br-data
+      data-port: *data-port
+      aa-profile-mode: complain  # XXX: 1761536
+      # If not using designate, set this to the upstream DNS servers
+      # neutron should use. Instances will talk to neutron, and neutron
+      # will forward to these servers. If using designate, see:
+      # https://openstackdevops.wordpress.com/2018/01/27/designate-and-neutron-dns-integration/
+      #dns-servers: FCE_TEMPLATE
+      customize-failure-domain: *customize-failure-domain
+    to:
+    - 0
+  neutron-openvswitch:
+    charm: cs:neutron-openvswitch
+    num_units: 0
+    bindings:
+      data: *overlay-space
+    options:
+      worker-multiplier: *worker-multiplier
+      bridge-mappings: physnet1:br-data
+      prevent-arp-spoofing: True
+      firewall-driver: openvswitch
+      #dns-servers: FCE_TEMPLATE
+  ncc-memcached:
+    charm: cs:memcached
+    num_units: 2
+    constraints: *oam-space-constr
+    bindings:
+      "": *oam-space
+    options:
+      allow-ufw-ip6-softfail: true
+    to:
+      - lxd:4
+      - lxd:7
+  nova-cloud-controller:
+    charm: cs:nova-cloud-controller
+    num_units: 3
+    bindings:
+      "": *oam-space
+      public: *public-space
+      admin: *admin-space
+      internal: *internal-space
+      shared-db: *internal-space
+    options:
+      worker-multiplier: *worker-multiplier
+      openstack-origin: *openstack-origin
+      network-manager: Neutron
+      region: *openstack-region
+      vip: *nova-cc-vip
+      console-access-protocol: spice
+      console-proxy-ip: local
+      use-internal-endpoints: True
+      #single-nova-consoleauth: True
+    to:
+    - lxd:3
+    - lxd:5
+    - lxd:6
+  nova-compute-kvm:
+    charm: cs:nova-compute
+    num_units: 5
+    bindings:
+      "": *oam-space
+      internal: *internal-space
+    options:
+      openstack-origin: *openstack-origin
+      enable-live-migration: True
+      enable-resize: True
+      migration-auth-type: ssh
+      use-internal-endpoints: True
+      libvirt-image-backend: qcow2
+      restrict-ceph-pools: False
+      aa-profile-mode: enforce
+      virt-type: kvm
+      customize-failure-domain: *customize-failure-domain
+    to:
+    - 1
+    - 2
+    - 3
+    - 4
+    - 5
+  ntp:
+    charm: cs:ntp
+    num_units: 0
+    options:
+      source: *ntp-source
+  openstack-dashboard:
+    charm: cs:openstack-dashboard
+    num_units: 3
+    constraints: *oam-space-constr
+    bindings:
+      "": *public-space
+      shared-db: *internal-space
+    options:
+      openstack-origin: *openstack-origin
+      webroot: "/"
+      secret: "encryptcookieswithme"
+      vip: *dashboard-vip
+      neutron-network-l3ha: True
+      neutron-network-lb: True
+      neutron-network-firewall: False
+      cinder-backup: False
+      password-retrieve: True
+      endpoint-type: publicURL
+    to:
+    - lxd:3
+    - lxd:5
+    - lxd:6
+  rabbitmq-server:
+    charm: cs:rabbitmq-server
+    bindings:
+      "": *oam-space
+      amqp: *internal-space
+      cluster: *internal-space
+    options:
+      source: *openstack-origin
+      min-cluster-size: 3
+    num_units: 3
+    to:
+    - lxd:3
+    - lxd:5
+    - lxd:6
+  heat:
+    charm: cs:heat
+    num_units: 3
+    bindings:
+      "": *oam-space
+      public: *public-space
+      admin: *admin-space
+      internal: *internal-space
+      shared-db: *internal-space
+    options:
+      worker-multiplier: *worker-multiplier
+      openstack-origin: *openstack-origin
+      region: *openstack-region
+      vip: *heat-vip
+      use-internal-endpoints: True
+    to:
+    - lxd:0
+    - lxd:1
+    - lxd:2
+  designate:
+    charm: cs:designate
+    num_units: 3
+    bindings:
+      "": *oam-space
+      public: *public-space
+      admin: *admin-space
+      internal: *internal-space
+      shared-db: *internal-space
+      coordinator-memcached: *internal-space
+      dns-backend: *internal-space
+    options:
+      openstack-origin: *openstack-origin
+      region: *openstack-region
+      vip: *designate-vip
+      use-internal-endpoints: True
+      nameservers: *designate-nameservers
+      #TODO
+    to:
+    - lxd:3
+    - lxd:5
+    - lxd:6
+  designate-bind:
+    charm: cs:designate-bind
+    num_units: 2
+    constraints: *oam-space-constr
+    bindings:
+      "": *internal-space
+      # DNS port 53 access for external clients and tenants via provider networks
+      dns-frontend: *dns-access-space
+    options:
+      use-internal-endpoints: True
+      # allowed_recursion_nets: FCE_TEMPLATE
+      # allowed_nets: FCE_TEMPLATE
+      # forwarders: FCE_TEMPLATE
+      # recursion: FCE_TEMPLATE
+    to:
+    - lxd:1
+    - lxd:2
+  memcached:
+    charm: cs:memcached
+    num_units: 2
+    constraints: *oam-space-constr
+    bindings:
+      "": *internal-space
+    options:
+      allow-ufw-ip6-softfail: True
+    to:
+    - designate-bind/0
+    - designate-bind/1
+  ceilometer:
+    charm: cs:ceilometer
+    num_units: 3
+    bindings:
+      "": *oam-space
+      public: *public-space
+      admin: *admin-space
+      internal: *internal-space
+    options:
+      openstack-origin: *openstack-origin
+      region: *openstack-region
+      vip: *ceilometer-vip
+      use-internal-endpoints: True
+    to:
+    - lxd:3
+    - lxd:5
+    - lxd:6
+  ceilometer-agent:
+    charm: cs:ceilometer-agent
+    num_units: 0
+    options:
+      use-internal-endpoints: True
+  glance-simplestreams-sync:
+    bindings:
+      "": *oam-space
+    charm: cs:glance-simplestreams-sync
+    num_units: 1
+    options:
+      source: ppa:simplestreams-dev/trunk
+    to:
+    - lxd:2
+relations:
+  # openstack
+  - [ aodh, mysql ]
+  - [ aodh, keystone ]
+  - [ "aodh:amqp", "rabbitmq-server:amqp" ]
+  - [ ceph-osd, ceph-mon ]
+  - [ ceph-radosgw, ceph-mon ]
+  - [ keystone, ceph-radosgw ]
+  - [ nova-compute-kvm, ntp ]
+  - [ neutron-gateway, ntp ]
+  - [ ceph-radosgw, hacluster-radosgw ]
+  - [ mysql, hacluster-mysql ]
+  - [ keystone, hacluster-keystone ]
+  - [ aodh, hacluster-aodh ]
+  - [ glance, hacluster-glance ]
+  - [ gnocchi, hacluster-gnocchi ]
+  - [ cinder, hacluster-cinder ]
+  - [ designate, hacluster-designate ]
+  - [ neutron-api, hacluster-neutron ]
+  - [ nova-cloud-controller, hacluster-nova ]
+  - [ openstack-dashboard, hacluster-horizon ]
+  - [ heat, hacluster-heat ]
+  - [ keystone, mysql ]
+  - [ "ceilometer:identity-credentials", "keystone:identity-credentials" ]
+  - [ "ceilometer:amqp", "rabbitmq-server:amqp" ]
+  - [ ceilometer, hacluster-ceilometer ]
+  - [ cinder, mysql ]
+  - [ cinder, keystone ]
+  - [ cinder-ceph, ceph-mon ]
+  - [ cinder-ceph, cinder ]
+  - [ "cinder:amqp", "rabbitmq-server:amqp" ]
+  - [ designate, mysql ]
+  - [ designate, designate-bind ]
+  - [ designate, keystone ]
+  - [ "designate:amqp", "rabbitmq-server:amqp" ]
+  - [ designate, memcached ]
+  - [ glance, mysql ]
+  - [ glance, keystone ]
+  - [ glance, ceph-mon ]
+  - [ "glance:amqp", "rabbitmq-server:amqp" ]
+  - [ gnocchi, mysql ]
+  - [ "gnocchi:amqp", "rabbitmq-server:amqp" ]
+  - [ gnocchi, keystone ]
+  - [ gnocchi, ceph-mon ]
+  - [ gnocchi, memcached ]
+  - [ gnocchi, ceilometer ]
+  - [ heat, mysql ]
+  - [ heat, keystone ]
+  - [ "heat:amqp", "rabbitmq-server:amqp" ]
+  - [ "nova-cloud-controller:shared-db", "mysql:shared-db" ]
+  - [ "nova-cloud-controller:amqp", "rabbitmq-server:amqp" ]
+  - [ nova-cloud-controller, keystone ]
+  - [ nova-cloud-controller, glance ]
+  - [ neutron-api, mysql ]
+  - [ "neutron-api:amqp", "rabbitmq-server:amqp" ]
+  - [ neutron-api, nova-cloud-controller ]
+  - [ neutron-api, keystone ]
+  - [ neutron-gateway, nova-cloud-controller ]
+  - [ "neutron-gateway:amqp", "rabbitmq-server:amqp" ]
+  - [ "neutron-gateway:neutron-plugin-api", "neutron-api:neutron-plugin-api" ]
+  - [ "neutron-openvswitch:amqp", "rabbitmq-server:amqp" ]
+  - [ neutron-openvswitch, neutron-api ]
+  - [ "nova-compute-kvm:amqp", "rabbitmq-server:amqp" ]
+  - [ nova-compute-kvm, ceph-mon ]
+  - [ nova-compute-kvm, cinder-ceph ]
+  - [ nova-compute-kvm, glance ]
+  - [ nova-compute-kvm, neutron-openvswitch ]
+  - [ nova-compute-kvm, nova-cloud-controller ]
+  - [ "openstack-dashboard:identity-service", "keystone:identity-service" ]
+  - [ openstack-dashboard, mysql ]
+  - [ ceilometer-agent, nova-compute-kvm ]
+  - [ ceilometer-agent, ceilometer ]
+  - [ "glance:image-service", "cinder:image-service" ]
+  - [ designate, neutron-api ]
+  - [ ceilometer-agent, rabbitmq-server ]
+  - [glance-simplestreams-sync, keystone]
+  - [glance-simplestreams-sync, rabbitmq-server] 
+  - [ nova-cloud-controller, ncc-memcached ]
