@@ -1,4 +1,4 @@
-from lib import juju_cli, openstack_utils
+from lib import juju_cli
 import os
 from jinja2 import Environment, FileSystemLoader
 
@@ -51,4 +51,5 @@ def bootstrap_juju():
 
 if __name__ == '__main__':
     render_openstack_cloud_files()
+    from lib import openstack_utils
     bootstrap_juju()
