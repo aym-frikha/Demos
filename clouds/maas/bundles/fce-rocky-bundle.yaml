@@ -737,3 +737,4 @@ relations:
   - [glance-simplestreams-sync, keystone]
   - [glance-simplestreams-sync, rabbitmq-server] 
   - [ nova-cloud-controller, ncc-memcached ]
+  - [ nova-cloud-controller, ceph-mon ]

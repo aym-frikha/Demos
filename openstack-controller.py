@@ -4,11 +4,12 @@ from jinja2 import Environment, FileSystemLoader
 
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
+base_dir = 'clouds/openstack/'
 cloud_name = 'openstack'
 controller_name = 'openstack'
 model_name = 'openstack'
-k8s_bundle = "Clouds/Openstack/Bundles/k8s-bundle.yaml"
-
+k8s_bundle = base_dir + "/bundles/k8s-bundle.yaml"
+template_dir = base_dir + 'template/'
 def render_openstack_cloud_files():
     keystone_ip = '172.27.32.29'
     admin_password = juju_cli.run(model_name, 'keystone/0', 'leader-get admin_passwd')
@@ -16,22 +17,28 @@ def render_openstack_cloud_files():
     j2_env = Environment(loader=FileSystemLoader(THIS_DIR),
                          trim_blocks=True)
 
-    openstack_cloud_sdk = j2_env.get_template('Clouds/Openstack/template/openstack-cloud-sdk.yaml.j2').render(
+    openstack_cloud_sdk = j2_env.get_template(template_dir + 'openstack-cloud-sdk.yaml.j2').render(
         keystone_ip=keystone_ip.rstrip(), admin_password=admin_password.rstrip())
 
 
 
-    openstack_cloud_juju = j2_env.get_template('Clouds/Openstack/template/openstack-cloud-juju.yaml.j2').render(
+    openstack_cloud_juju = j2_env.get_template(template_dir + 'openstack-cloud-juju.yaml.j2').render(
         keystone_ip=keystone_ip.rstrip())
 
-    openstack_credentials = j2_env.get_template('Clouds/Openstack/template/openstack-cloud-credentials.yaml.j2').render(
+    openstack_credentials = j2_env.get_template(template_dir + 'openstack-cloud-credentials.yaml.j2').render(
         keystone_ip=keystone_ip.rstrip(), admin_password=admin_password.rstrip())
 
-    with open('Clouds/Openstack/openstack-cloud.yaml', 'w+') as f:
+    openstack_rc = j2_env.get_template(template_dir + 'rc.j2').render(
+        keystone_ip=keystone_ip.rstrip(), admin_password=admin_password.rstrip())
+
+    with open(base_dir + 'openstack-cloud.yaml', 'w+') as f:
         f.write(openstack_cloud_juju)
 
-    with open('Clouds/Openstack/openstack-credentials.yaml', 'w+') as f:
+    with open(base_dir + 'openstack-credentials.yaml', 'w+') as f:
         f.write(openstack_credentials)
+
+    with open(base_dir + 'rc', 'w+') as f:
+        f.write(openstack_rc)
 
     with open('/home/ubuntu/.config/openstack/clouds.yaml', 'w+') as f:
         f.write(openstack_cloud_sdk)
@@ -51,5 +58,5 @@ def bootstrap_juju():
 
 if __name__ == '__main__':
     render_openstack_cloud_files()
-    from lib import openstack_utils
-    bootstrap_juju()
+    #from lib import openstack_utils
+    #bootstrap_juju()

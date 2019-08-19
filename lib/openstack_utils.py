@@ -53,6 +53,11 @@ def create_public_network():
             print(public_subnet)
 
 
+def live_migrate_servers(host):
+    for server in conn.compute.servers(all_tenants=True, host=host):
+        print(server.name)
+        conn.compute.live_migrate_server(server.id)
+
 def create_router():
     print(" Create router used by Juju")
     router_name = 'juju-router'
