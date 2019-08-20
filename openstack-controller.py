@@ -39,13 +39,15 @@ def render_openstack_cloud_files():
 
     with open(base_dir + 'rc', 'w+') as f:
         f.write(openstack_rc)
-
-    with open('/home/ubuntu/.config/openstack/clouds.yaml', 'w+') as f:
+    directory = '/home/ubuntu/.config/openstack/'
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+    with open(directory + 'clouds.yaml', 'w+') as f:
         f.write(openstack_cloud_sdk)
 
 def bootstrap_juju():
-    juju_cli.add_cloud(cloud_name, 'Clouds/Openstack/openstack-cloud.yaml')
-    juju_cli.add_credential(cloud_name, 'Clouds/Openstack/openstack-credentials.yaml')
+    juju_cli.add_cloud(cloud_name, base_dir + 'openstack-cloud.yaml')
+    juju_cli.add_credential(cloud_name, base_dir + 'openstack-credentials.yaml')
     openstack_utils.create_public_network()
     openstack_utils.create_private_network()
     openstack_utils.create_router()
@@ -58,5 +60,5 @@ def bootstrap_juju():
 
 if __name__ == '__main__':
     render_openstack_cloud_files()
-    #from lib import openstack_utils
-    #bootstrap_juju()
+    from lib import openstack_utils
+    bootstrap_juju()

@@ -4,6 +4,6 @@ export OS_PROJECT_NAME="admin"
 export OS_USER_DOMAIN_NAME="admin_domain"
 export OS_PROJECT_DOMAIN_NAME="admin_domain"
 export OS_USERNAME="admin"
-export OS_PASSWORD="mub3aTeeng2quie7"
+export OS_PASSWORD="ahcoo9Iegiecaeg9"
 export OS_REGION_NAME="RegionOne"
 export OS_IDENTITY_API_VERSION=3

@@ -2,11 +2,11 @@ from lib import juju_cli
 
 base_dir = 'clouds/maas/'
 
-bootstrap_tag = 'virtual'
+bootstrap_tag = 'juju'
 cloud_name = 'maas'
 controller_name = 'maas'
 model_name = 'openstack'
-bundle = base_dir + "bundles/openstack.yaml"
+bundle = base_dir + "bundles/fce-rocky-bundle.yaml"
 
 def bootstrap():
     """Bootstrap a juju controller on MAAS.
