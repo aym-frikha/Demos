@@ -48,14 +48,19 @@ def render_openstack_cloud_files():
 def bootstrap_juju():
     juju_cli.add_cloud(cloud_name, base_dir + 'openstack-cloud.yaml')
     juju_cli.add_credential(cloud_name, base_dir + 'openstack-credentials.yaml')
+    
     openstack_utils.create_public_network()
     openstack_utils.create_private_network()
     openstack_utils.create_router()
     openstack_utils.creat_flavor()
+    
     pub_net = openstack_utils.conn.network.find_network(openstack_utils.public_net_name)
     priv_net = openstack_utils.conn.network.find_network(openstack_utils.private_net_name)
+    
     juju_cli.bootstrap(cloud_name, options=['--config', 'network=' + str(priv_net.id),
-    '--config', 'external-network=' + str(pub_net.id), '--config','use-floating-ip=true', '-d', model_name])
+    '--config', 'external-network=' + str(pub_net.id), '--config','use-floating-ip=true', 
+    '--constraints', 'mem=2G' ,'-d', model_name])
+    
     juju_cli.deploy(model_name, k8s_bundle)
 
 if __name__ == '__main__':
