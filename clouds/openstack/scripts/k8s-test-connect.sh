@@ -1,2 +1,2 @@
 #!/bin/bash
-while true; do curl -kL http://172.27.34.4/apple ; date; sleep 0.5 ;curl -kL http://172.27.34.4/banana ; done
+while true; do curl   -w "@$PWD/../template/curl-format.txt"  -s -kL http://echoapp.maas/apple ; sleep 1; done
