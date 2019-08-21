@@ -6,13 +6,16 @@ from jinja2 import Environment, FileSystemLoader
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 base_dir = 'clouds/openstack/'
 cloud_name = 'openstack'
-controller_name = 'openstack'
-model_name = 'openstack'
-k8s_bundle = base_dir + "/bundles/k8s-bundle.yaml"
+openstack_model_name = 'openstack'
+
+k8s_model_name = 'kubernetes'
+
+
+k8s_bundle = base_dir + "bundles/k8s-bundle.yaml"
 template_dir = base_dir + 'template/'
 def render_openstack_cloud_files():
     keystone_ip = '172.27.32.29'
-    admin_password = juju_cli.run(model_name, 'keystone/0', 'leader-get admin_passwd')
+    admin_password = juju_cli.run(openstack_model_name, 'keystone/0', 'leader-get admin_passwd')
 
     j2_env = Environment(loader=FileSystemLoader(THIS_DIR),
                          trim_blocks=True)
@@ -59,9 +62,9 @@ def bootstrap_juju():
     
     juju_cli.bootstrap(cloud_name, options=['--config', 'network=' + str(priv_net.id),
     '--config', 'external-network=' + str(pub_net.id), '--config','use-floating-ip=true', 
-    '--constraints', 'mem=2G' ,'-d', model_name])
+    '--constraints', 'mem=2G' ,'-d', k8s_model_name])
     
-    juju_cli.deploy(model_name, k8s_bundle)
+    juju_cli.deploy(k8s_model_name, k8s_bundle)
 
 if __name__ == '__main__':
     render_openstack_cloud_files()

@@ -2,17 +2,14 @@ description: A minimal two-machine Kubernetes cluster, appropriate for developme
 series: bionic
 machines:
   '0':
-    constraints: cores=4 mem=2G
+    constraints: cores=2 mem=2G
     series: bionic
   '1':
-    constraints: cores=4 mem=2G
+    constraints: cores=2 mem=2G
     series: bionic
 services:
   easyrsa:
-    annotations:
-      gui-x: '450'
-      gui-y: '550'
-    charm: cs:~containers/easyrsa-222
+    charm: cs:~containers/easyrsa
     num_units: 1
     resources:
       easyrsa: 5
@@ -22,7 +19,7 @@ services:
     annotations:
       gui-x: '800'
       gui-y: '550'
-    charm: cs:~containers/etcd-397
+    charm: cs:etcd
     num_units: 1
     options:
       channel: 3.2/stable
@@ -31,51 +28,34 @@ services:
       snapshot: 0
     to:
     - '0'
+  containerd:
+    charm: cs:~containers/containerd
+  canonical-livepatch:
+    charm: cs:canonical-livepatch
+    options:
+      livepatch_key: FCE_TEMPLATE
   flannel:
     annotations:
       gui-x: '450'
       gui-y: '750'
-    charm: cs:~containers/flannel-386
-    resources:
-      flannel-amd64: 76
-      flannel-arm64: 76
-      flannel-s390x: 62
+    charm: cs:~containers/flannel
   kubernetes-master:
-    annotations:
-      gui-x: '800'
-      gui-y: '850'
-    charm: cs:~containers/kubernetes-master-604
-    constraints: cores=2 mem=2G root-disk=16G
+    charm: cs:~containers/kubernetes-master
     expose: true
     num_units: 1
     options:
+      authorization-mode: RBAC,Node
+      allow-privileged: "true"
       channel: 1.15/stable
-    resources:
-      cdk-addons: 0
-      kube-apiserver: 0
-      kube-controller-manager: 0
-      kube-proxy: 0
-      kube-scheduler: 0
-      kubectl: 0
     to:
     - '0'
   kubernetes-worker:
-    annotations:
-      gui-x: '100'
-      gui-y: '850'
-    charm: cs:~containers/kubernetes-worker-472
-    constraints: cores=4 mem=2G root-disk=16G
+    charm: cs:~containers/kubernetes-worker
     expose: true
     num_units: 1
     options:
+      allow-privileged: "true"
       channel: 1.15/stable
-    resources:
-      cni-amd64: 82
-      cni-arm64: 76
-      cni-s390x: 80
-      kube-proxy: 0
-      kubectl: 0
-      kubelet: 0
     to:
     - '1'
   openstack-integrator:
@@ -102,3 +82,7 @@ relations:
   - kubernetes-worker:cni
 - ['openstack-integrator', 'kubernetes-master']
 - ['openstack-integrator', 'kubernetes-worker']
+- - containerd
+  - kubernetes-master
+- - containerd
+  - kubernetes-worker
