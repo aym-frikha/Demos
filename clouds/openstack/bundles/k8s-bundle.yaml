@@ -2,10 +2,10 @@ description: A minimal two-machine Kubernetes cluster, appropriate for developme
 series: bionic
 machines:
   '0':
-    constraints: cores=2 mem=2G
+    constraints: cores=2 mem=3G
     series: bionic
   '1':
-    constraints: cores=2 mem=2G
+    constraints: cores=2 mem=3G
     series: bionic
 services:
   easyrsa:

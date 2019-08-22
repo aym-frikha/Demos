@@ -62,7 +62,7 @@ def bootstrap_juju():
     
     juju_cli.bootstrap(cloud_name, options=['--config', 'network=' + str(priv_net.id),
     '--config', 'external-network=' + str(pub_net.id), '--config','use-floating-ip=true', 
-    '--constraints', 'mem=2G' ,'-d', k8s_model_name])
+    '--constraints', 'mem=3G' ,'-d', k8s_model_name])
     
     juju_cli.deploy(k8s_model_name, k8s_bundle)
 

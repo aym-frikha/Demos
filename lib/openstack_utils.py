@@ -77,7 +77,7 @@ def creat_flavor():
             'name': flavor_name,
             'disk': 30,
             'is_public': True,
-            'ram': 2048,
+            'ram': 3072,
             'vcpus': 2
         }
         conn.compute.create_flavor(**flavor)
